@@ -1,12 +1,13 @@
 import type { ConsensusReport } from '@/types';
 import { hashQuery, normalizeQuery } from '@/lib/utils';
+import { redisGet, redisSet } from '@/lib/cache/redis';
 
 export interface DateRange { from: string; to: string; }
 
-// Hot in-memory cache: fast, resets on restart
+// L1: in-process memory (fast, resets on cold start)
 const memoryCache = new Map<string, { report: ConsensusReport; expiresAt: number }>();
-const MEMORY_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const DB_TTL_HOURS = 24;
+const MEMORY_TTL_MS = 5 * 60 * 1000;   // 5 minutes
+const DB_TTL_SECONDS = 24 * 60 * 60;   // 24 hours
 
 function buildKey(query: string, dateRange?: DateRange): string {
   return dateRange ? `${query}|${dateRange.from}|${dateRange.to}` : query;
@@ -14,26 +15,33 @@ function buildKey(query: string, dateRange?: DateRange): string {
 
 export async function getCachedReport(query: string, dateRange?: DateRange): Promise<ConsensusReport | null> {
   const key = hashQuery(buildKey(query, dateRange));
+  const redisKey = `tl:report:${key}`;
 
-  // Check memory first — evict on access so we don't need a setInterval
+  // L1: memory
   const mem = memoryCache.get(key);
   if (mem) {
     if (mem.expiresAt > Date.now()) return mem.report;
     memoryCache.delete(key);
   }
 
-  // Check database
+  // L2: Redis
+  const cached = await redisGet<ConsensusReport>(redisKey);
+  if (cached) {
+    memoryCache.set(key, { report: cached, expiresAt: Date.now() + MEMORY_TTL_MS });
+    return cached;
+  }
+
+  // L3: SQLite (local dev fallback)
   try {
     const { prisma } = await import('@/lib/db/prisma');
     const row = await prisma.searchCache.findUnique({ where: { queryHash: key } });
     if (row && new Date(row.expiresAt) > new Date()) {
       const report = JSON.parse(row.report) as ConsensusReport;
-      // Warm memory cache
       memoryCache.set(key, { report, expiresAt: Date.now() + MEMORY_TTL_MS });
       return report;
     }
   } catch {
-    // DB unavailable — continue without cache
+    // DB unavailable
   }
 
   return null;
@@ -41,27 +49,25 @@ export async function getCachedReport(query: string, dateRange?: DateRange): Pro
 
 export async function cacheReport(query: string, report: ConsensusReport, dateRange?: DateRange): Promise<void> {
   const key = hashQuery(buildKey(query, dateRange));
+  const redisKey = `tl:report:${key}`;
   const normalized = normalizeQuery(query);
-  const expiresAt = new Date(Date.now() + DB_TTL_HOURS * 60 * 60 * 1000);
 
-  // Always update memory
+  // L1: memory
   memoryCache.set(key, { report, expiresAt: Date.now() + MEMORY_TTL_MS });
 
-  // Try database
+  // L2: Redis (primary on Vercel)
+  await redisSet(redisKey, report, DB_TTL_SECONDS);
+
+  // L3: SQLite (local dev)
   try {
+    const expiresAt = new Date(Date.now() + DB_TTL_SECONDS * 1000);
     const { prisma } = await import('@/lib/db/prisma');
     await prisma.searchCache.upsert({
       where: { queryHash: key },
       update: { report: JSON.stringify(report), expiresAt, normalizedQuery: normalized },
-      create: {
-        queryHash: key,
-        normalizedQuery: normalized,
-        report: JSON.stringify(report),
-        expiresAt,
-      },
+      create: { queryHash: key, normalizedQuery: normalized, report: JSON.stringify(report), expiresAt },
     });
   } catch {
-    // DB unavailable — memory cache only is fine
+    // DB unavailable — Redis cache is sufficient
   }
 }
-

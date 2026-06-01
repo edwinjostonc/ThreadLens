@@ -17,14 +17,15 @@ export const dynamic = 'force-dynamic';
 
 const querySchema = z.string().min(2).max(200).trim();
 
-// Simple in-memory rate limiter: max 8 req/min per IP
+import { redisIncr } from '@/lib/cache/redis';
+
+// In-memory fallback rate limiter (used when Redis is unavailable)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(ip: string): boolean {
+function checkRateLimitLocal(ip: string): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
   if (!entry || entry.resetAt < now) {
-    // Prune expired entries to prevent unbounded Map growth
     if (rateLimitMap.size > 500) {
       for (const [k, v] of rateLimitMap) {
         if (v.resetAt < now) rateLimitMap.delete(k);
@@ -38,11 +39,20 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
+async function checkRateLimit(ip: string): Promise<boolean> {
+  const count = await redisIncr(`tl:rl:${ip}`, 60);
+  if (count === 0) return checkRateLimitLocal(ip); // Redis unavailable
+  return count <= 8;
+}
+
+// Deduplication: if same query is already in-flight, reuse the promise
+const pendingRequests = new Map<string, Promise<ConsensusReport>>();
+
 export async function GET(request: Request) {
   const ip =
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
 
-  if (!checkRateLimit(ip)) {
+  if (!await checkRateLimit(ip)) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
   }
 
@@ -75,13 +85,25 @@ export async function GET(request: Request) {
   const searchOptions: SearchOptions = { dateRange, subreddit };
 
   const startTime = Date.now();
-
-  // Check cache (subreddit is part of the key via searchOptions)
   const cacheKey = subreddit ? `${query}|r/${subreddit}` : query;
+
+  // Check cache
   const cached = await getCachedReport(cacheKey, dateRange);
   if (cached) {
     return NextResponse.json({ success: true, report: cached, cached: true });
   }
+
+  // Deduplication: reuse in-flight analysis for identical concurrent requests
+  const dedupKey = `${cacheKey}|${dateRange?.from ?? ''}|${dateRange?.to ?? ''}`;
+  const existing = pendingRequests.get(dedupKey);
+  if (existing) {
+    const report = await existing;
+    return NextResponse.json({ success: true, report, cached: false });
+  }
+
+  let resolvePending!: (r: ConsensusReport) => void;
+  const pendingPromise = new Promise<ConsensusReport>((resolve) => { resolvePending = resolve; });
+  pendingRequests.set(dedupKey, pendingPromise);
 
   try {
     // 1. Expand query into variations
@@ -143,9 +165,12 @@ export async function GET(request: Request) {
 
     // Cache result
     await cacheReport(cacheKey, report, dateRange);
+    resolvePending(report);
+    pendingRequests.delete(dedupKey);
 
     return NextResponse.json({ success: true, report });
   } catch (error) {
+    pendingRequests.delete(dedupKey);
     console.error('[ThreadLens] Analysis error:', error);
     return NextResponse.json(
       { error: 'Analysis failed. Reddit may be temporarily unavailable. Please try again.' },

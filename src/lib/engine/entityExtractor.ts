@@ -239,7 +239,8 @@ export async function extractEntities(comments: RedditComment[], query: string):
     const entities: Entity[] = [];
     for (const name of groqNames) {
       const entity = buildEntityFromName(name, pool);
-      if (entity) entities.push(entity);
+      // Require at least 2 mentions — single-mention entities are noise
+      if (entity && entity.mentions.length >= 2) entities.push(entity);
     }
     if (entities.length > 0) return entities;
   }

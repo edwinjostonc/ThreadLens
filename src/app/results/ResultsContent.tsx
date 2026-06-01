@@ -268,11 +268,25 @@ export function ResultsContent() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-border bg-card p-8 text-center">
+              <div className="rounded-xl border border-border bg-card p-8 text-center space-y-3">
                 <p className="text-muted-foreground text-sm">
-                  No specific recommendations were extracted from the discussions. The community
-                  may be discussing the topic without naming specific options.
+                  No specific recommendations found. The community may be discussing this topic
+                  without naming specific options — or the query needs to be more specific.
                 </p>
+                <div className="text-xs text-muted-foreground/70 space-y-1">
+                  <p>Try a more specific query:</p>
+                  <div className="flex flex-wrap justify-center gap-2 mt-2">
+                    {['best ' + query, query + ' recommendations', query + ' vs alternatives'].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => router.push(`/results?q=${encodeURIComponent(suggestion)}`)}
+                        className="px-2.5 py-1 rounded-full border border-border text-xs hover:border-orange-500/40 hover:text-orange-400 transition-all"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 

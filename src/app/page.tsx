@@ -23,22 +23,37 @@ const HOW_IT_WORKS = [
 const HISTORY_KEY = 'threadlens_history';
 const MAX_HISTORY = 8;
 
-function getHistory(): string[] {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]'); } catch { return []; }
+interface HistoryEntry {
+  q: string;
+  from?: string;
+  to?: string;
+  subreddit?: string;
 }
-function saveToHistory(q: string) {
-  const updated = [q, ...getHistory().filter((h) => h !== q)].slice(0, MAX_HISTORY);
+
+function getHistory(): HistoryEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]');
+    // Migrate legacy string entries
+    return raw.map((item: HistoryEntry | string) =>
+      typeof item === 'string' ? { q: item } : item,
+    );
+  } catch { return []; }
+}
+
+function saveToHistory(entry: HistoryEntry) {
+  const updated = [entry, ...getHistory().filter((h) => h.q !== entry.q)].slice(0, MAX_HISTORY);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
 }
+
 function removeFromHistory(q: string) {
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(getHistory().filter((h) => h !== q)));
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(getHistory().filter((h) => h.q !== q)));
 }
 
 export default function HomePage() {
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<{ q: string; from?: string; to?: string; subreddit?: string }[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
@@ -72,24 +87,44 @@ export default function HomePage() {
   function handleSearch(q: string) {
     const trimmed = q.trim();
     if (!trimmed || trimmed.length < 2) return;
-    saveToHistory(trimmed);
+    const entry = {
+      q: trimmed,
+      from: showDateFilter && dateFrom ? dateFrom : undefined,
+      to: showDateFilter && dateTo ? dateTo : undefined,
+      subreddit: showDateFilter && subreddit.trim() ? subreddit.trim().replace(/^r\//, '') : undefined,
+    };
+    saveToHistory(entry);
     setHistory(getHistory());
     setIsLoading(true);
     setShowHistory(false);
     const params = new URLSearchParams({ q: trimmed });
-    if (showDateFilter && dateFrom && dateTo && dateFrom <= dateTo) {
-      params.set('from', dateFrom);
-      params.set('to', dateTo);
+    if (entry.from && entry.to && entry.from <= entry.to) {
+      params.set('from', entry.from);
+      params.set('to', entry.to);
     }
-    if (showDateFilter && subreddit.trim()) {
-      params.set('subreddit', subreddit.trim().replace(/^r\//, ''));
-    }
+    if (entry.subreddit) params.set('subreddit', entry.subreddit);
     router.push(`/results?${params.toString()}`);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') handleSearch(query);
     if (e.key === 'Escape') setShowHistory(false);
+  }
+
+  function handleHistoryClick(entry: { q: string; from?: string; to?: string; subreddit?: string }) {
+    setQuery(entry.q);
+    if (entry.from || entry.to || entry.subreddit) {
+      setShowDateFilter(true);
+      setDateFrom(entry.from ?? '');
+      setDateTo(entry.to ?? '');
+      setSubreddit(entry.subreddit ?? '');
+    }
+    const params = new URLSearchParams({ q: entry.q });
+    if (entry.from && entry.to) { params.set('from', entry.from); params.set('to', entry.to); }
+    if (entry.subreddit) params.set('subreddit', entry.subreddit);
+    setIsLoading(true);
+    setShowHistory(false);
+    router.push(`/results?${params.toString()}`);
   }
 
   function handleDeleteHistory(q: string, e: React.MouseEvent) {
@@ -171,13 +206,21 @@ export default function HomePage() {
                 <Clock className="w-3 h-3 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Recent searches</span>
               </div>
-              {history.map((q) => (
-                <div key={q}
+              {history.map((entry) => (
+                <div key={entry.q}
                   className="flex items-center justify-between px-4 py-2.5 hover:bg-accent cursor-pointer group transition-colors"
-                  onMouseDown={() => handleSearch(q)}>
-                  <span className="text-sm text-foreground/80 group-hover:text-foreground">{q}</span>
-                  <button onMouseDown={(e) => handleDeleteHistory(q, e)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:text-red-400">
+                  onMouseDown={() => handleHistoryClick(entry)}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm text-foreground/80 group-hover:text-foreground truncate">{entry.q}</span>
+                    {entry.subreddit && (
+                      <span className="text-xs text-orange-400/70 shrink-0">r/{entry.subreddit}</span>
+                    )}
+                    {entry.from && entry.to && (
+                      <span className="text-xs text-muted-foreground shrink-0">{entry.from.slice(0, 7)}…</span>
+                    )}
+                  </div>
+                  <button onMouseDown={(e) => handleDeleteHistory(entry.q, e)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:text-red-400 shrink-0">
                     <X className="w-3 h-3" />
                   </button>
                 </div>

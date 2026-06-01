@@ -11,13 +11,16 @@ export function normalizeQuery(query: string): string {
 
 export function hashQuery(query: string): string {
   const normalized = normalizeQuery(query);
-  let hash = 0;
+  // Use a simple but collision-resistant djb2a hash (avoids Node crypto in client components)
+  let hash = 5381;
   for (let i = 0; i < normalized.length; i++) {
-    const char = normalized.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
+    hash = ((hash << 5) + hash) ^ normalized.charCodeAt(i);
+    hash = hash >>> 0; // keep unsigned 32-bit
   }
-  return Math.abs(hash).toString(36);
+  // Mix high bits down for better distribution, encode as hex
+  const h1 = hash ^ (hash >>> 16);
+  const h2 = (Math.imul(h1, 0x45d9f3b) >>> 0) ^ (h1 >>> 16);
+  return h2.toString(16).padStart(8, '0');
 }
 
 export function formatNumber(n: number): string {
