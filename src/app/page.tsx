@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, ArrowRight, Zap, Shield, BarChart3, FileText, Clock, X, Calendar, TrendingUp } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const EXAMPLE_QUERIES = [
   'best gym in Berlin',
@@ -64,17 +65,27 @@ export default function HomePage() {
   const searchParams = useSearchParams();
 
   const heroRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const animatedRef = useRef(false);
 
   useEffect(() => {
     setHistory(getHistory());
-    // Pre-fill query from ?q= param (set by Back button on results page)
     const prefill = searchParams?.get('q');
     if (prefill) setQuery(prefill);
-    // Fetch trending searches
     fetch('/api/trending').then((r) => r.json()).then((d) => {
       if (Array.isArray(d.trending) && d.trending.length > 0) setTrending(d.trending);
     }).catch(() => {});
+
+    // Cmd+K / Ctrl+K focuses search
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   useEffect(() => {
@@ -152,7 +163,7 @@ export default function HomePage() {
           </div>
           <span className="font-bold text-sm tracking-wide">ThreadLens</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <a href="/compare"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             Compare
@@ -161,6 +172,7 @@ export default function HomePage() {
             className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             GitHub
           </a>
+          <ThemeToggle />
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs text-emerald-400">Live</span>
@@ -191,6 +203,7 @@ export default function HomePage() {
           <div className="relative flex items-center">
             <Search className="absolute left-4 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
+              ref={searchRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -310,7 +323,9 @@ export default function HomePage() {
         {/* Example queries */}
         <div data-animate className="flex flex-wrap justify-center gap-2 mb-16">
           {EXAMPLE_QUERIES.map((q) => (
-            <button key={q} onClick={() => handleSearch(q)}
+            <button key={q}
+              onClick={() => handleSearch(q)}
+              onMouseEnter={() => router.prefetch(`/results?q=${encodeURIComponent(q)}`)}
               className="px-3 py-1.5 rounded-full text-xs border border-border bg-card hover:border-orange-500/40 hover:text-orange-400 text-muted-foreground transition-all">
               {q}
             </button>

@@ -236,10 +236,20 @@ export async function extractEntities(comments: RedditComment[], query: string):
   const groqNames = await extractEntityNamesWithGroq(pool, query);
 
   if (groqNames && groqNames.length > 0) {
-    const entities: Entity[] = [];
+    // Deduplicate by lowercase key — "keychron q1" and "Keychron Q1" are the same entity
+    const seen = new Map<string, string>(); // lowercase → canonical name
+    const deduped: string[] = [];
     for (const name of groqNames) {
+      const key = name.toLowerCase().trim();
+      if (!seen.has(key)) {
+        seen.set(key, name);
+        deduped.push(name);
+      }
+    }
+
+    const entities: Entity[] = [];
+    for (const name of deduped) {
       const entity = buildEntityFromName(name, pool);
-      // Require at least 2 mentions — single-mention entities are noise
       if (entity && entity.mentions.length >= 2) entities.push(entity);
     }
     if (entities.length > 0) return entities;

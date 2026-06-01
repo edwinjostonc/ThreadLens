@@ -40,9 +40,14 @@ export function ResultsContent() {
     setStep(0);
     setSelectedEntity(0);
 
-    stepRef.current = setInterval(() => {
-      setStep((s) => Math.min(s + 1, 5));
-    }, 3500);
+    // Step timing mirrors actual API work: expand (2s) → search (5s) → fetch (8s) → extract (13s) → score (16s) → report (19s)
+    const STEP_DELAYS = [2000, 5000, 8000, 13000, 16000, 19000];
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    STEP_DELAYS.forEach((delay, i) => {
+      timers.push(setTimeout(() => setStep(i + 1), delay));
+    });
+    stepRef.current = setInterval(() => {}, 999999); // kept for cleanup ref shape
+    const _timers = timers; // capture for cleanup
 
     try {
       const apiParams = new URLSearchParams({ q });
@@ -63,6 +68,7 @@ export function ResultsContent() {
     } finally {
       setIsLoading(false);
       if (stepRef.current) clearInterval(stepRef.current);
+      _timers.forEach(clearTimeout);
     }
   }, []);
 

@@ -47,6 +47,12 @@ function cleanText(text: string): string {
     .trim();
 }
 
+function isProbablyEnglish(text: string): boolean {
+  // Count non-ASCII characters — >35% suggests non-English text
+  const nonAscii = (text.match(/[^\x00-\x7F]/g) ?? []).length;
+  return nonAscii / text.length < 0.35;
+}
+
 export function cleanComments(comments: RedditComment[]): RedditComment[] {
   const seen = new Set<string>();
 
@@ -54,8 +60,8 @@ export function cleanComments(comments: RedditComment[]): RedditComment[] {
     .filter((c) => !isBot(c) && !isSpam(c))
     .map((c) => ({ ...c, text: cleanText(c.text) }))
     .filter((c) => c.text.length >= 15)
+    .filter((c) => isProbablyEnglish(c.text))
     .filter((c) => {
-      // Deduplicate by first 60 chars (catches copy-paste duplicates)
       const key = c.text.substring(0, 60).toLowerCase().replace(/\s+/g, ' ');
       if (seen.has(key)) return false;
       seen.add(key);
