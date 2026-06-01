@@ -42,3 +42,22 @@ export async function redisIncr(key: string, ttlSeconds: number): Promise<number
     return 0;
   }
 }
+
+export async function redisTrendingIncr(query: string): Promise<void> {
+  try {
+    const redis = getRedis();
+    if (!redis) return;
+    await redis.zincrby('tl:trending', 1, query.toLowerCase().trim());
+  } catch {}
+}
+
+export async function redisTrendingTop(limit = 8): Promise<string[]> {
+  try {
+    const redis = getRedis();
+    if (!redis) return [];
+    const results = await redis.zrange('tl:trending', 0, limit - 1, { rev: true });
+    return results as string[];
+  } catch {
+    return [];
+  }
+}

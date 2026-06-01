@@ -65,6 +65,7 @@ export interface ConsensusReport {
   commonPraises: string[];
   commonComplaints: string[];
   sourceThreads: RedditThread[];
+  relatedQueries: string[];
   generatedAt: number;
   processingTimeMs: number;
 }

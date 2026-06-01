@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, ArrowRight, Zap, Shield, BarChart3, FileText, Clock, X, Calendar } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Search, ArrowRight, Zap, Shield, BarChart3, FileText, Clock, X, Calendar, TrendingUp } from 'lucide-react';
 
 const EXAMPLE_QUERIES = [
   'best gym in Berlin',
@@ -59,13 +59,22 @@ export default function HomePage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [subreddit, setSubreddit] = useState('');
+  const [trending, setTrending] = useState<string[]>([]);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const heroRef = useRef<HTMLDivElement>(null);
   const animatedRef = useRef(false);
 
   useEffect(() => {
     setHistory(getHistory());
+    // Pre-fill query from ?q= param (set by Back button on results page)
+    const prefill = searchParams?.get('q');
+    if (prefill) setQuery(prefill);
+    // Fetch trending searches
+    fetch('/api/trending').then((r) => r.json()).then((d) => {
+      if (Array.isArray(d.trending) && d.trending.length > 0) setTrending(d.trending);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -307,6 +316,24 @@ export default function HomePage() {
             </button>
           ))}
         </div>
+
+        {/* Trending searches */}
+        {trending.length > 0 && (
+          <div data-animate className="w-full max-w-2xl mb-8">
+            <p className="text-xs text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5 justify-center">
+              <TrendingUp className="w-3 h-3" /> Trending
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {trending.map((q) => (
+                <button key={q} onClick={() => handleSearch(q)}
+                  className="px-3 py-1.5 rounded-full text-xs border border-border bg-card hover:border-orange-500/40 hover:text-orange-400 text-muted-foreground transition-all flex items-center gap-1">
+                  <TrendingUp className="w-2.5 h-2.5 text-orange-400/60" />
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* How it works */}
         <div data-animate className="w-full max-w-4xl">

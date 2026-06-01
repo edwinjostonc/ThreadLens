@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Search, ArrowRight, Trophy, Layers, MessageSquare, Zap } from 'lucide-react';
+import { ArrowLeft, Search, ArrowRight, Trophy, Layers, MessageSquare, Zap, ArrowLeftRight, Share2, Check } from 'lucide-react';
 import type { ConsensusReport, AnalyzeResponse } from '@/types';
 import { formatNumber } from '@/lib/utils';
 
@@ -180,6 +180,7 @@ export function CompareContent() {
   const [inputB, setInputB] = useState(queryB);
   const [sideA, setSideA] = useState<SideState>(EMPTY_SIDE);
   const [sideB, setSideB] = useState<SideState>(EMPTY_SIDE);
+  const [copied, setCopied] = useState(false);
 
   const analyze = useCallback(async (q: string, setSide: (s: SideState) => void) => {
     if (q.trim().length < 2) return;
@@ -211,6 +212,21 @@ export function CompareContent() {
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter') handleCompare();
+  }
+
+  function handleSwap() {
+    const a = inputA; const b = inputB;
+    setInputA(b); setInputB(a);
+    if (queryA && queryB) {
+      router.push(`/compare?a=${encodeURIComponent(queryB)}&b=${encodeURIComponent(queryA)}`);
+    }
+  }
+
+  function handleShare() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }
 
   const scoreA = sideA.report ? getAvgScore(sideA.report) : null;
@@ -257,12 +273,28 @@ export function CompareContent() {
               />
             </div>
             <button
+              onClick={handleSwap}
+              title="Swap A and B"
+              className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-orange-500/30 transition-all shrink-0"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+            </button>
+            <button
               onClick={handleCompare}
               disabled={inputA.trim().length < 2 || inputB.trim().length < 2}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
               Compare <ArrowRight className="w-3.5 h-3.5" />
             </button>
+            {queryA && queryB && (
+              <button
+                onClick={handleShare}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:border-orange-500/30 transition-all shrink-0"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
+                {copied ? 'Copied!' : 'Share'}
+              </button>
+            )}
           </div>
         </div>
       </header>

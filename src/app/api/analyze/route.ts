@@ -10,6 +10,7 @@ import { calculateConfidence } from '@/lib/engine/confidenceEngine';
 import { detectDisagreements, extractCommonPraises, extractCommonComplaints } from '@/lib/engine/reportGenerator';
 import { generateExecutiveSummary } from '@/lib/ai/explainer';
 import { getCachedReport, cacheReport } from '@/lib/cache/searchCache';
+import { redisTrendingIncr } from '@/lib/cache/redis';
 import type { ConsensusReport } from '@/types';
 
 export const maxDuration = 60;
@@ -147,6 +148,9 @@ export async function GET(request: Request) {
       cleanedComments.length,
     );
 
+    // Related queries — the other expansions (excluding the original)
+    const relatedQueries = queries.filter((q) => q.toLowerCase() !== query.toLowerCase()).slice(0, 4);
+
     const report: ConsensusReport = {
       query,
       executiveSummary,
@@ -159,12 +163,14 @@ export async function GET(request: Request) {
       commonPraises,
       commonComplaints,
       sourceThreads: topThreads,
+      relatedQueries,
       generatedAt: Date.now(),
       processingTimeMs: Date.now() - startTime,
     };
 
-    // Cache result
+    // Cache + log trending (fire-and-forget)
     await cacheReport(cacheKey, report, dateRange);
+    redisTrendingIncr(query).catch(() => {});
     resolvePending(report);
     pendingRequests.delete(dedupKey);
 
@@ -192,6 +198,7 @@ function buildEmptyReport(query: string, startTime: number): ConsensusReport {
     commonPraises: [],
     commonComplaints: [],
     sourceThreads: [],
+    relatedQueries: [],
     generatedAt: Date.now(),
     processingTimeMs: Date.now() - startTime,
   };
