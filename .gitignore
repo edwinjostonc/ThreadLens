@@ -7,6 +7,7 @@ node_modules
 out
 
 # Environment
+.env
 .env.local
 .env.*.local
 
@@ -19,6 +20,7 @@ prisma/dev.db-journal
 # Build outputs
 dist
 build
+tsconfig.tsbuildinfo
 
 # OS
 .DS_Store
