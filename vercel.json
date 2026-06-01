@@ -1,0 +1,10 @@
+{
+  "env": {
+    "DATABASE_URL": "file:/tmp/threadlens.db"
+  },
+  "functions": {
+    "src/app/api/analyze/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

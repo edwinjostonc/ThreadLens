@@ -1,0 +1,219 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search, ArrowRight, Zap, Shield, BarChart3, FileText, Clock, X } from 'lucide-react';
+
+const EXAMPLE_QUERIES = [
+  'best gym in Berlin',
+  'best laptop under €1000',
+  'Is MBA worth it',
+  'best protein powder',
+  'best mechanical keyboard',
+  'moving to Germany',
+];
+
+const HOW_IT_WORKS = [
+  { icon: Search, title: 'Searches Reddit', desc: 'Finds relevant discussions across subreddits' },
+  { icon: BarChart3, title: 'Analyzes Data', desc: 'Extracts entities, sentiment, and frequency' },
+  { icon: Zap, title: 'Scores Consensus', desc: 'Weighted algorithm across 5 dimensions' },
+  { icon: FileText, title: 'Explains Results', desc: 'Every finding linked to real Reddit sources' },
+];
+
+const HISTORY_KEY = 'threadlens_history';
+const MAX_HISTORY = 8;
+
+function getHistory(): string[] {
+  if (typeof window === 'undefined') return [];
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]'); } catch { return []; }
+}
+function saveToHistory(q: string) {
+  const updated = [q, ...getHistory().filter((h) => h !== q)].slice(0, MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+}
+function removeFromHistory(q: string) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(getHistory().filter((h) => h !== q)));
+}
+
+export default function HomePage() {
+  const [query, setQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const router = useRouter();
+
+  const heroRef = useRef<HTMLDivElement>(null);
+  const animatedRef = useRef(false);
+
+  useEffect(() => {
+    setHistory(getHistory());
+  }, []);
+
+  useEffect(() => {
+    if (animatedRef.current) return;
+    animatedRef.current = true;
+
+    // Lazy-import GSAP only in the browser, never during SSR
+    import('gsap').then(({ default: gsap }) => {
+      const targets = heroRef.current?.querySelectorAll('[data-animate]');
+      if (!targets || targets.length === 0) return;
+      gsap.fromTo(
+        targets,
+        { opacity: 0, y: 28 },
+        { opacity: 1, y: 0, duration: 0.6, stagger: 0.1, ease: 'power3.out' },
+      );
+    });
+  }, []);
+
+  function handleSearch(q: string) {
+    const trimmed = q.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    saveToHistory(trimmed);
+    setHistory(getHistory());
+    setIsLoading(true);
+    setShowHistory(false);
+    router.push(`/results?q=${encodeURIComponent(trimmed)}`);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') handleSearch(query);
+    if (e.key === 'Escape') setShowHistory(false);
+  }
+
+  function handleDeleteHistory(q: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    removeFromHistory(q);
+    setHistory(getHistory());
+  }
+
+  return (
+    <main className="min-h-screen flex flex-col">
+      {/* Nav */}
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-orange-500 flex items-center justify-center">
+            <Search className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="font-bold text-sm tracking-wide">ThreadLens</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <a href="https://github.com" target="_blank" rel="noreferrer"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            GitHub
+          </a>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs text-emerald-400">Live</span>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      <section ref={heroRef} className="flex-1 flex flex-col items-center justify-center px-4 py-20 text-center">
+        <div data-animate className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium">
+          <Zap className="w-3 h-3" />
+          AI-powered Reddit Consensus Engine
+        </div>
+
+        <h1 data-animate className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-4 leading-[1.05]">
+          Understand Reddit
+          <br />
+          <span className="text-gradient">without reading Reddit.</span>
+        </h1>
+
+        <p data-animate className="text-lg text-muted-foreground max-w-xl mb-12 leading-relaxed">
+          ThreadLens analyzes thousands of Reddit discussions to extract what the
+          community actually thinks — backed by real data, not AI hallucinations.
+        </p>
+
+        {/* Search */}
+        <div data-animate className="w-full max-w-2xl mb-4 relative">
+          <div className="relative flex items-center">
+            <Search className="absolute left-4 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onFocus={() => history.length > 0 && setShowHistory(true)}
+              onBlur={() => setTimeout(() => setShowHistory(false), 150)}
+              placeholder="What does Reddit think about..."
+              className="w-full pl-11 pr-36 py-4 rounded-xl border border-border bg-card text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/50 transition-all"
+              disabled={isLoading}
+              maxLength={200}
+            />
+            <button
+              onClick={() => handleSearch(query)}
+              disabled={isLoading || query.trim().length < 2}
+              className="absolute right-2 flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isLoading
+                ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <><span>Analyze</span><ArrowRight className="w-3.5 h-3.5" /></>}
+            </button>
+          </div>
+
+          {showHistory && history.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-2 rounded-xl border border-border bg-card shadow-xl z-10 overflow-hidden animate-fade-in">
+              <div className="px-3 py-2 border-b border-border/50 flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Recent searches</span>
+              </div>
+              {history.map((q) => (
+                <div key={q}
+                  className="flex items-center justify-between px-4 py-2.5 hover:bg-accent cursor-pointer group transition-colors"
+                  onMouseDown={() => handleSearch(q)}>
+                  <span className="text-sm text-foreground/80 group-hover:text-foreground">{q}</span>
+                  <button onMouseDown={(e) => handleDeleteHistory(q, e)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:text-red-400">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Example queries */}
+        <div data-animate className="flex flex-wrap justify-center gap-2 mb-16">
+          {EXAMPLE_QUERIES.map((q) => (
+            <button key={q} onClick={() => handleSearch(q)}
+              className="px-3 py-1.5 rounded-full text-xs border border-border bg-card hover:border-orange-500/40 hover:text-orange-400 text-muted-foreground transition-all">
+              {q}
+            </button>
+          ))}
+        </div>
+
+        {/* How it works */}
+        <div data-animate className="w-full max-w-4xl">
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-6">How it works</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {HOW_IT_WORKS.map(({ icon: Icon, title, desc }, i) => (
+              <div key={title} className="flex flex-col items-center gap-2 p-4 rounded-xl border border-border bg-card/50">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-500/10">
+                  <Icon className="w-4 h-4 text-orange-400" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">{i + 1}.</span>
+                  <span className="text-sm font-medium">{title}</span>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border/50 px-6 py-4 flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Data sourced from Reddit&apos;s public API · Not affiliated with Reddit, Inc.
+        </p>
+        <div className="flex items-center gap-1">
+          <Shield className="w-3 h-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">No data stored</span>
+        </div>
+      </footer>
+    </main>
+  );
+}
