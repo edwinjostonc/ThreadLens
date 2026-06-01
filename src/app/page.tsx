@@ -43,6 +43,7 @@ export default function HomePage() {
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [subreddit, setSubreddit] = useState('');
   const router = useRouter();
 
   const heroRef = useRef<HTMLDivElement>(null);
@@ -80,6 +81,9 @@ export default function HomePage() {
       params.set('from', dateFrom);
       params.set('to', dateTo);
     }
+    if (showDateFilter && subreddit.trim()) {
+      params.set('subreddit', subreddit.trim().replace(/^r\//, ''));
+    }
     router.push(`/results?${params.toString()}`);
   }
 
@@ -105,7 +109,7 @@ export default function HomePage() {
           <span className="font-bold text-sm tracking-wide">ThreadLens</span>
         </div>
         <div className="flex items-center gap-4">
-          <a href="https://github.com" target="_blank" rel="noreferrer"
+          <a href="https://github.com/edwinjostonc/ThreadLens" target="_blank" rel="noreferrer"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             GitHub
           </a>
@@ -207,27 +211,40 @@ export default function HomePage() {
           </button>
 
           {showDateFilter && (
-            <div className="mt-2 flex items-center gap-2 p-3 rounded-xl border border-border bg-card">
-              <div className="flex-1">
-                <label className="block text-xs text-muted-foreground mb-1">From</label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  max={dateTo || undefined}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
-                />
+            <div className="mt-2 flex flex-col gap-2 p-3 rounded-xl border border-border bg-card">
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs text-muted-foreground mb-1">From</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                  />
+                </div>
+                <div className="text-muted-foreground text-xs pt-4">→</div>
+                <div className="flex-1">
+                  <label className="block text-xs text-muted-foreground mb-1">To</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                  />
+                </div>
               </div>
-              <div className="text-muted-foreground text-xs pt-4">→</div>
-              <div className="flex-1">
-                <label className="block text-xs text-muted-foreground mb-1">To</label>
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Subreddit (optional)</label>
                 <input
-                  type="date"
-                  value={dateTo}
-                  min={dateFrom || undefined}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                  type="text"
+                  value={subreddit}
+                  onChange={(e) => setSubreddit(e.target.value)}
+                  placeholder="e.g. MechanicalKeyboards"
+                  maxLength={50}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
                 />
               </div>
             </div>

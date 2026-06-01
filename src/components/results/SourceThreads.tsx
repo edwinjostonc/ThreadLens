@@ -1,6 +1,6 @@
 import type { RedditThread } from '@/types';
 import { ExternalLink, ArrowUp, MessageSquare } from 'lucide-react';
-import { formatNumber, timeAgo } from '@/lib/utils';
+import { formatNumber } from '@/lib/utils';
 
 interface Props {
   threads: RedditThread[];
@@ -41,7 +41,6 @@ export function SourceThreads({ threads }: Props) {
                   <MessageSquare className="w-3 h-3" />
                   {formatNumber(thread.commentCount)}
                 </span>
-                <span>{timeAgo(thread.createdAt)}</span>
               </div>
             </div>
             <ExternalLink className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5 group-hover:text-orange-400 transition-colors" />

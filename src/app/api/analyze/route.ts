@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { expandQuery } from '@/lib/engine/queryExpander';
 import { searchAndExtract, deduplicateThreads, selectTopThreads } from '@/lib/reddit/search';
-import type { DateRange } from '@/lib/reddit/search';
+import type { SearchOptions } from '@/lib/reddit/search';
 import { cleanComments } from '@/lib/engine/dataCleaner';
 import { extractEntities } from '@/lib/engine/entityExtractor';
 import { scoreConsensus } from '@/lib/engine/consensusScorer';
@@ -60,15 +60,25 @@ export async function GET(request: Request) {
   const dateFrom = searchParams.get('from');
   const dateTo = searchParams.get('to');
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
-  const dateRange: DateRange | undefined =
+  const dateRange =
     dateFrom && dateTo && dateRe.test(dateFrom) && dateRe.test(dateTo) && dateFrom <= dateTo
       ? { from: dateFrom, to: dateTo }
       : undefined;
 
+  // Parse optional subreddit filter (alphanumeric + underscore, max 50 chars)
+  const rawSubreddit = searchParams.get('subreddit');
+  const subreddit =
+    rawSubreddit && /^[a-zA-Z0-9_]{1,50}$/.test(rawSubreddit)
+      ? rawSubreddit
+      : undefined;
+
+  const searchOptions: SearchOptions = { dateRange, subreddit };
+
   const startTime = Date.now();
 
-  // Check cache
-  const cached = await getCachedReport(query, dateRange);
+  // Check cache (subreddit is part of the key via searchOptions)
+  const cacheKey = subreddit ? `${query}|r/${subreddit}` : query;
+  const cached = await getCachedReport(cacheKey, dateRange);
   if (cached) {
     return NextResponse.json({ success: true, report: cached, cached: true });
   }
@@ -78,7 +88,7 @@ export async function GET(request: Request) {
     const queries = await expandQuery(query);
 
     // 2. Single-pass: search + extract snippets across all query variations
-    const { threads: allThreads, comments: rawComments } = await searchAndExtract(queries, dateRange);
+    const { threads: allThreads, comments: rawComments } = await searchAndExtract(queries, searchOptions);
 
     // 3. Deduplicate + select top display threads
     const uniqueThreads = deduplicateThreads(allThreads);
@@ -132,7 +142,7 @@ export async function GET(request: Request) {
     };
 
     // Cache result
-    await cacheReport(query, report, dateRange);
+    await cacheReport(cacheKey, report, dateRange);
 
     return NextResponse.json({ success: true, report });
   } catch (error) {

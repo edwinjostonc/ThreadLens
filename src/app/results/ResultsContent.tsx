@@ -18,6 +18,7 @@ export function ResultsContent() {
   const query = searchParams?.get('q') ?? '';
   const dateFrom = searchParams?.get('from') ?? '';
   const dateTo = searchParams?.get('to') ?? '';
+  const subreddit = searchParams?.get('subreddit') ?? '';
   const hasDateFilter = Boolean(dateFrom && dateTo);
 
   const [report, setReport] = useState<ConsensusReport | null>(null);
@@ -46,6 +47,7 @@ export function ResultsContent() {
     try {
       const apiParams = new URLSearchParams({ q });
       if (dateFrom && dateTo) { apiParams.set('from', dateFrom); apiParams.set('to', dateTo); }
+      if (subreddit) apiParams.set('subreddit', subreddit);
       const res = await fetch(`/api/analyze?${apiParams.toString()}`);
       const data: AnalyzeResponse = await res.json();
 
@@ -170,12 +172,19 @@ export function ResultsContent() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             &ldquo;{query}&rdquo;
           </h1>
-          {hasDateFilter && (
-            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs">
-              <Calendar className="w-3 h-3" />
-              {dateFrom} → {dateTo}
-            </div>
-          )}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {subreddit && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs">
+                r/{subreddit}
+              </span>
+            )}
+            {hasDateFilter && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs">
+                <Calendar className="w-3 h-3" />
+                {dateFrom} → {dateTo}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Loading */}

@@ -76,33 +76,3 @@ export interface AnalyzeResponse {
   cached?: boolean;
 }
 
-export interface RawRedditPost {
-  id: string;
-  title: string;
-  url: string;
-  permalink: string;
-  score: number;
-  subreddit: string;
-  created_utc: number;
-  num_comments: number;
-  selftext: string;
-}
-
-export interface RawRedditComment {
-  id: string;
-  body: string;
-  score: number;
-  author: string;
-  created_utc: number;
-  replies?: RawRedditListing | string;
-}
-
-export interface RawRedditListing {
-  kind: string;
-  data: {
-    children: Array<{
-      kind: string;
-      data: RawRedditPost | RawRedditComment;
-    }>;
-  };
-}

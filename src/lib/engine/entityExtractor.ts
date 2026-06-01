@@ -1,26 +1,9 @@
 import type { RedditComment, Entity, EntityMention } from '@/types';
 import { analyzeSentiment, getSentencesContaining, classifySentences } from './sentimentAnalyzer';
+import { callGroq } from '@/lib/ai/groq';
 
-async function groqChat(prompt: string, maxTokens = 300, temperature = 0.2): Promise<string | null> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens,
-        temperature,
-      }),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.choices?.[0]?.message?.content?.trim() ?? null;
-  } catch {
-    return null;
-  }
+function groqChat(prompt: string, maxTokens = 300, temperature = 0.2): Promise<string | null> {
+  return callGroq(prompt, { maxTokens, temperature });
 }
 
 async function extractEntityNamesWithGroq(comments: RedditComment[], query: string): Promise<string[] | null> {

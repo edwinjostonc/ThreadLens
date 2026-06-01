@@ -1,32 +1,6 @@
 import type { Entity, RedditThread } from '@/types';
 import { generateTemplateSummary } from '@/lib/engine/reportGenerator';
-
-async function callGroq(prompt: string, maxTokens = 300): Promise<string | null> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: maxTokens,
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) return null;
-    const json = await response.json();
-    return json.choices?.[0]?.message?.content?.trim() ?? null;
-  } catch {
-    return null;
-  }
-}
+import { callGroq } from '@/lib/ai/groq';
 
 export async function generateExecutiveSummary(
   query: string,
@@ -68,7 +42,7 @@ Rules:
 
 Write only the summary:`;
 
-  const aiSummary = await callGroq(prompt, 220);
+  const aiSummary = await callGroq(prompt, { maxTokens: 220 });
   if (!aiSummary || aiSummary.length < 40) {
     return generateTemplateSummary(query, entities, threads.length, commentCount);
   }

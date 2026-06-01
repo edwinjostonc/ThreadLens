@@ -5,6 +5,11 @@ export interface DateRange {
   to: string;   // YYYY-MM-DD
 }
 
+export interface SearchOptions {
+  dateRange?: DateRange;
+  subreddit?: string; // e.g. "MechanicalKeyboards"
+}
+
 interface SerperSitelink {
   title: string;
   link: string;
@@ -27,13 +32,17 @@ function toGoogleDate(dateStr: string): string {
   return `${m}/${d}/${y}`;
 }
 
-async function callSerper(query: string, num = 10, dateRange?: DateRange): Promise<SerperOrganic[]> {
+async function callSerper(query: string, num = 10, options?: SearchOptions): Promise<SerperOrganic[]> {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) return [];
 
-  const body: Record<string, unknown> = { q: `site:reddit.com ${query}`, num };
-  if (dateRange?.from && dateRange?.to) {
-    body.tbs = `cdr:1,cd_min:${toGoogleDate(dateRange.from)},cd_max:${toGoogleDate(dateRange.to)}`;
+  const siteScope = options?.subreddit
+    ? `site:reddit.com/r/${options.subreddit}`
+    : 'site:reddit.com';
+  const body: Record<string, unknown> = { q: `${siteScope} ${query}`, num };
+  const dr = options?.dateRange;
+  if (dr?.from && dr?.to) {
+    body.tbs = `cdr:1,cd_min:${toGoogleDate(dr.from)},cd_max:${toGoogleDate(dr.to)}`;
   }
 
   try {
@@ -111,7 +120,7 @@ function snippetToComments(snippet: string, threadId: string, baseIdx: number): 
  */
 export async function searchAndExtract(
   queries: string[],
-  dateRange?: DateRange,
+  options?: SearchOptions,
 ): Promise<{ threads: RedditThread[]; comments: RedditComment[] }> {
   const allThreads: RedditThread[] = [];
   const allComments: RedditComment[] = [];
@@ -127,7 +136,7 @@ export async function searchAndExtract(
   }
 
   for (const query of queries) {
-    const results = await callSerper(query, 10, dateRange);
+    const results = await callSerper(query, 10, options);
     for (const result of results) {
       const thread = parseThreadFromUrl(result);
       if (!thread) continue;
@@ -163,12 +172,12 @@ export function selectTopThreads(threads: RedditThread[], topN = 6): RedditThrea
 }
 
 // Kept for compatibility
-export async function searchReddit(query: string, limit = 10, dateRange?: DateRange): Promise<RedditThread[]> {
-  const results = await callSerper(query, limit, dateRange);
+export async function searchReddit(query: string, limit = 10, options?: SearchOptions): Promise<RedditThread[]> {
+  const results = await callSerper(query, limit, options);
   return results.map(parseThreadFromUrl).filter((t): t is RedditThread => t !== null);
 }
 
-export async function fetchSnippetComments(threads: RedditThread[], queries: string[], dateRange?: DateRange): Promise<RedditComment[]> {
-  const { comments } = await searchAndExtract(queries, dateRange);
+export async function fetchSnippetComments(threads: RedditThread[], queries: string[], options?: SearchOptions): Promise<RedditComment[]> {
+  const { comments } = await searchAndExtract(queries, options);
   return comments;
 }

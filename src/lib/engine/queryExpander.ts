@@ -1,24 +1,4 @@
-async function callGroq(prompt: string): Promise<string | null> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0.4,
-      }),
-    });
-    if (!response.ok) return null;
-    const json = await response.json();
-    return json.choices?.[0]?.message?.content?.trim() ?? null;
-  } catch {
-    return null;
-  }
-}
+import { callGroq } from '@/lib/ai/groq';
 
 function expandQueryBasic(query: string): string[] {
   const q = query.trim();
@@ -37,7 +17,7 @@ Rules:
 Return ONLY a JSON array of strings. No explanation.
 Example: ["best mechanical keyboard reddit", "mechanical keyboard vs membrane worth it", "keychron vs logitech recommendation", "mechanical keyboard beginner buy 2024"]`;
 
-  const content = await callGroq(prompt);
+  const content = await callGroq(prompt, { maxTokens: 200, temperature: 0.4 });
   if (content) {
     try {
       const match = content.match(/\[[\s\S]*?\]/);
