@@ -23,14 +23,29 @@ export function analyzeSentiment(text: string): SentimentResult {
   };
 }
 
+/**
+ * Returns sentences containing the entity using word-boundary matching.
+ * Prevents false positives like "Alps" matching "scalps" or "palps".
+ */
 export function getSentencesContaining(text: string, entity: string): string[] {
   const sentences = text
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 10);
 
-  const entityLower = entity.toLowerCase();
-  return sentences.filter((s) => s.toLowerCase().includes(entityLower));
+  // Use word-boundary regex for precise matching; fall back to includes for
+  // multi-word entities where boundary anchors are already implicit.
+  let matchFn: (s: string) => boolean;
+  try {
+    const escaped = entity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+    matchFn = (s) => regex.test(s);
+  } catch {
+    const lower = entity.toLowerCase();
+    matchFn = (s) => s.toLowerCase().includes(lower);
+  }
+
+  return sentences.filter(matchFn);
 }
 
 export function classifySentences(sentences: string[]): {

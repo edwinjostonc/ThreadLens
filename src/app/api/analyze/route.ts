@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { expandQuery } from '@/lib/engine/queryExpander';
-import { searchReddit, fetchSnippetComments, deduplicateThreads, selectTopThreads } from '@/lib/reddit/search';
+import { searchAndExtract, deduplicateThreads, selectTopThreads } from '@/lib/reddit/search';
 import type { DateRange } from '@/lib/reddit/search';
 import { cleanComments } from '@/lib/engine/dataCleaner';
 import { extractEntities } from '@/lib/engine/entityExtractor';
@@ -77,14 +77,10 @@ export async function GET(request: Request) {
     // 1. Expand query into variations
     const queries = await expandQuery(query);
 
-    // 2. Search via Serper (site:reddit.com) for all query variations
-    const allThreads = [];
-    for (const q of queries) {
-      const results = await searchReddit(q, 10, dateRange);
-      allThreads.push(...results);
-    }
+    // 2. Single-pass: search + extract snippets across all query variations
+    const { threads: allThreads, comments: rawComments } = await searchAndExtract(queries, dateRange);
 
-    // 3. Deduplicate + rank + select top threads
+    // 3. Deduplicate + select top display threads
     const uniqueThreads = deduplicateThreads(allThreads);
     const topThreads = selectTopThreads(uniqueThreads, 6);
 
@@ -95,15 +91,15 @@ export async function GET(request: Request) {
       });
     }
 
-    // 4. Extract snippet-based comments from Serper results
-    const allComments = await fetchSnippetComments(topThreads, queries, dateRange);
+    // 4. Use all collected comments (from all threads, not just top-N)
+    const allComments = rawComments;
 
     // 5. Clean data
     const cleanedComments = cleanComments(allComments);
 
     // 6. Extract entities + score consensus
     const rawEntities = await extractEntities(cleanedComments, query);
-    const scoredEntities = scoreConsensus(rawEntities, topThreads);
+    const scoredEntities = scoreConsensus(rawEntities, uniqueThreads);
 
     // 7. Confidence + disagreements
     const confidence = calculateConfidence(topThreads.length, cleanedComments.length, scoredEntities);

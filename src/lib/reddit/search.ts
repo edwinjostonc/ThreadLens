@@ -77,7 +77,6 @@ function snippetToComments(snippet: string, threadId: string, baseIdx: number): 
 
   if (cleaned.length < 20) return [];
 
-  // Split on sentence boundaries to get multiple data points from one snippet
   const sentences = cleaned
     .split(/(?<=[.!?])\s+(?=[A-Z])/)
     .map((s) => s.trim())
@@ -104,16 +103,19 @@ function snippetToComments(snippet: string, threadId: string, baseIdx: number): 
   }));
 }
 
-export async function searchReddit(query: string, limit = 10, dateRange?: DateRange): Promise<RedditThread[]> {
-  const results = await callSerper(query, limit, dateRange);
-  return results
-    .map(parseThreadFromUrl)
-    .filter((t): t is RedditThread => t !== null);
-}
-
-export async function fetchSnippetComments(threads: RedditThread[], queries: string[], dateRange?: DateRange): Promise<RedditComment[]> {
+/**
+ * Single-pass: search Serper for all query variations and extract snippets
+ * in the same call. Avoids a second Serper round-trip and captures all
+ * available snippet text regardless of whether the thread appears in the
+ * final top-N list.
+ */
+export async function searchAndExtract(
+  queries: string[],
+  dateRange?: DateRange,
+): Promise<{ threads: RedditThread[]; comments: RedditComment[] }> {
+  const allThreads: RedditThread[] = [];
   const allComments: RedditComment[] = [];
-  const seenThreadIds = new Set(threads.map((t) => t.id));
+  const seenThreadIds = new Set<string>();
   const seenTexts = new Set<string>();
 
   function addSnippet(text: string, threadId: string) {
@@ -128,10 +130,15 @@ export async function fetchSnippetComments(threads: RedditThread[], queries: str
     const results = await callSerper(query, 10, dateRange);
     for (const result of results) {
       const thread = parseThreadFromUrl(result);
-      if (!thread || !seenThreadIds.has(thread.id)) continue;
+      if (!thread) continue;
 
+      if (!seenThreadIds.has(thread.id)) {
+        seenThreadIds.add(thread.id);
+        allThreads.push(thread);
+      }
+
+      // Extract all snippets immediately — no thread ID filter
       if (result.snippet) addSnippet(result.snippet, thread.id);
-
       for (const sitelink of result.sitelinks ?? []) {
         if (sitelink.snippet) addSnippet(sitelink.snippet, thread.id);
         else if (sitelink.title && sitelink.title.length > 20) addSnippet(sitelink.title, thread.id);
@@ -139,12 +146,7 @@ export async function fetchSnippetComments(threads: RedditThread[], queries: str
     }
   }
 
-  return allComments;
-}
-
-// Kept for API compatibility — returns empty since Reddit blocks unauthenticated fetches
-export async function fetchThreadComments(): Promise<RedditComment[]> {
-  return [];
+  return { threads: allThreads, comments: allComments };
 }
 
 export function deduplicateThreads(threads: RedditThread[]): RedditThread[] {
@@ -158,4 +160,15 @@ export function deduplicateThreads(threads: RedditThread[]): RedditThread[] {
 
 export function selectTopThreads(threads: RedditThread[], topN = 6): RedditThread[] {
   return threads.slice(0, topN);
+}
+
+// Kept for compatibility
+export async function searchReddit(query: string, limit = 10, dateRange?: DateRange): Promise<RedditThread[]> {
+  const results = await callSerper(query, limit, dateRange);
+  return results.map(parseThreadFromUrl).filter((t): t is RedditThread => t !== null);
+}
+
+export async function fetchSnippetComments(threads: RedditThread[], queries: string[], dateRange?: DateRange): Promise<RedditComment[]> {
+  const { comments } = await searchAndExtract(queries, dateRange);
+  return comments;
 }
