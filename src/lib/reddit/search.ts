@@ -1,5 +1,10 @@
 import type { RedditThread, RedditComment } from '@/types';
 
+export interface DateRange {
+  from: string; // YYYY-MM-DD
+  to: string;   // YYYY-MM-DD
+}
+
 interface SerperSitelink {
   title: string;
   link: string;
@@ -17,9 +22,19 @@ interface SerperResponse {
   organic?: SerperOrganic[];
 }
 
-async function callSerper(query: string, num = 10): Promise<SerperOrganic[]> {
+function toGoogleDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-');
+  return `${m}/${d}/${y}`;
+}
+
+async function callSerper(query: string, num = 10, dateRange?: DateRange): Promise<SerperOrganic[]> {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) return [];
+
+  const body: Record<string, unknown> = { q: `site:reddit.com ${query}`, num };
+  if (dateRange?.from && dateRange?.to) {
+    body.tbs = `cdr:1,cd_min:${toGoogleDate(dateRange.from)},cd_max:${toGoogleDate(dateRange.to)}`;
+  }
 
   try {
     const response = await fetch('https://google.serper.dev/search', {
@@ -28,7 +43,7 @@ async function callSerper(query: string, num = 10): Promise<SerperOrganic[]> {
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ q: `site:reddit.com ${query}`, num }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) return [];
@@ -89,14 +104,14 @@ function snippetToComments(snippet: string, threadId: string, baseIdx: number): 
   }));
 }
 
-export async function searchReddit(query: string, limit = 10): Promise<RedditThread[]> {
-  const results = await callSerper(query, limit);
+export async function searchReddit(query: string, limit = 10, dateRange?: DateRange): Promise<RedditThread[]> {
+  const results = await callSerper(query, limit, dateRange);
   return results
     .map(parseThreadFromUrl)
     .filter((t): t is RedditThread => t !== null);
 }
 
-export async function fetchSnippetComments(threads: RedditThread[], queries: string[]): Promise<RedditComment[]> {
+export async function fetchSnippetComments(threads: RedditThread[], queries: string[], dateRange?: DateRange): Promise<RedditComment[]> {
   const allComments: RedditComment[] = [];
   const seenThreadIds = new Set(threads.map((t) => t.id));
   const seenTexts = new Set<string>();
@@ -110,14 +125,13 @@ export async function fetchSnippetComments(threads: RedditThread[], queries: str
   }
 
   for (const query of queries) {
-    const results = await callSerper(query, 10);
+    const results = await callSerper(query, 10, dateRange);
     for (const result of results) {
       const thread = parseThreadFromUrl(result);
       if (!thread || !seenThreadIds.has(thread.id)) continue;
 
       if (result.snippet) addSnippet(result.snippet, thread.id);
 
-      // Also extract sitelink snippets
       for (const sitelink of result.sitelinks ?? []) {
         if (sitelink.snippet) addSnippet(sitelink.snippet, thread.id);
         else if (sitelink.title && sitelink.title.length > 20) addSnippet(sitelink.title, thread.id);

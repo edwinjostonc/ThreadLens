@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { expandQuery } from '@/lib/engine/queryExpander';
 import { searchReddit, fetchSnippetComments, deduplicateThreads, selectTopThreads } from '@/lib/reddit/search';
+import type { DateRange } from '@/lib/reddit/search';
 import { cleanComments } from '@/lib/engine/dataCleaner';
 import { extractEntities } from '@/lib/engine/entityExtractor';
 import { scoreConsensus } from '@/lib/engine/consensusScorer';
@@ -54,10 +55,20 @@ export async function GET(request: Request) {
   }
 
   const query = parsed.data;
+
+  // Parse optional date range
+  const dateFrom = searchParams.get('from');
+  const dateTo = searchParams.get('to');
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const dateRange: DateRange | undefined =
+    dateFrom && dateTo && dateRe.test(dateFrom) && dateRe.test(dateTo) && dateFrom <= dateTo
+      ? { from: dateFrom, to: dateTo }
+      : undefined;
+
   const startTime = Date.now();
 
   // Check cache
-  const cached = await getCachedReport(query);
+  const cached = await getCachedReport(query, dateRange);
   if (cached) {
     return NextResponse.json({ success: true, report: cached, cached: true });
   }
@@ -69,7 +80,7 @@ export async function GET(request: Request) {
     // 2. Search via Serper (site:reddit.com) for all query variations
     const allThreads = [];
     for (const q of queries) {
-      const results = await searchReddit(q, 10);
+      const results = await searchReddit(q, 10, dateRange);
       allThreads.push(...results);
     }
 
@@ -85,7 +96,7 @@ export async function GET(request: Request) {
     }
 
     // 4. Extract snippet-based comments from Serper results
-    const allComments = await fetchSnippetComments(topThreads, queries);
+    const allComments = await fetchSnippetComments(topThreads, queries, dateRange);
 
     // 5. Clean data
     const cleanedComments = cleanComments(allComments);
@@ -125,7 +136,7 @@ export async function GET(request: Request) {
     };
 
     // Cache result
-    await cacheReport(query, report);
+    await cacheReport(query, report, dateRange);
 
     return NextResponse.json({ success: true, report });
   } catch (error) {

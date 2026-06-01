@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, ArrowLeft, RefreshCw, Clock, Layers, MessageSquare, Zap, Share2, Check } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCw, Clock, Layers, MessageSquare, Zap, Share2, Check, Calendar } from 'lucide-react';
 import type { ConsensusReport, AnalyzeResponse } from '@/types';
 import { LoadingSkeleton } from '@/components/results/LoadingSkeleton';
 import { RecommendationCard } from '@/components/results/RecommendationCard';
@@ -16,6 +16,9 @@ export function ResultsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const query = searchParams?.get('q') ?? '';
+  const dateFrom = searchParams?.get('from') ?? '';
+  const dateTo = searchParams?.get('to') ?? '';
+  const hasDateFilter = Boolean(dateFrom && dateTo);
 
   const [report, setReport] = useState<ConsensusReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +44,9 @@ export function ResultsContent() {
     }, 3500);
 
     try {
-      const res = await fetch(`/api/analyze?q=${encodeURIComponent(q)}`);
+      const apiParams = new URLSearchParams({ q });
+      if (dateFrom && dateTo) { apiParams.set('from', dateFrom); apiParams.set('to', dateTo); }
+      const res = await fetch(`/api/analyze?${apiParams.toString()}`);
       const data: AnalyzeResponse = await res.json();
 
       if (!res.ok || !data.success) {
@@ -165,6 +170,12 @@ export function ResultsContent() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             &ldquo;{query}&rdquo;
           </h1>
+          {hasDateFilter && (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs">
+              <Calendar className="w-3 h-3" />
+              {dateFrom} → {dateTo}
+            </div>
+          )}
         </div>
 
         {/* Loading */}

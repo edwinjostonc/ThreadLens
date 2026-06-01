@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, ArrowRight, Zap, Shield, BarChart3, FileText, Clock, X } from 'lucide-react';
+import { Search, ArrowRight, Zap, Shield, BarChart3, FileText, Clock, X, Calendar } from 'lucide-react';
 
 const EXAMPLE_QUERIES = [
   'best gym in Berlin',
@@ -40,6 +40,9 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const router = useRouter();
 
   const heroRef = useRef<HTMLDivElement>(null);
@@ -72,7 +75,12 @@ export default function HomePage() {
     setHistory(getHistory());
     setIsLoading(true);
     setShowHistory(false);
-    router.push(`/results?q=${encodeURIComponent(trimmed)}`);
+    const params = new URLSearchParams({ q: trimmed });
+    if (showDateFilter && dateFrom && dateTo && dateFrom <= dateTo) {
+      params.set('from', dateFrom);
+      params.set('to', dateTo);
+    }
+    router.push(`/results?${params.toString()}`);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -170,6 +178,58 @@ export default function HomePage() {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Date filter */}
+        <div data-animate className="w-full max-w-2xl mb-4">
+          <button
+            onClick={() => setShowDateFilter((v) => !v)}
+            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-all ${
+              showDateFilter
+                ? 'border-orange-500/50 text-orange-400 bg-orange-500/10'
+                : 'border-border text-muted-foreground hover:border-orange-500/30 hover:text-orange-400'
+            }`}
+          >
+            <Calendar className="w-3 h-3" />
+            {showDateFilter && dateFrom && dateTo
+              ? `${dateFrom} → ${dateTo}`
+              : 'Filter by date'}
+            {showDateFilter && (dateFrom || dateTo) && (
+              <span
+                className="ml-1 hover:text-red-400"
+                onClick={(e) => { e.stopPropagation(); setDateFrom(''); setDateTo(''); }}
+              >
+                <X className="w-3 h-3" />
+              </span>
+            )}
+          </button>
+
+          {showDateFilter && (
+            <div className="mt-2 flex items-center gap-2 p-3 rounded-xl border border-border bg-card">
+              <div className="flex-1">
+                <label className="block text-xs text-muted-foreground mb-1">From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                />
+              </div>
+              <div className="text-muted-foreground text-xs pt-4">→</div>
+              <div className="flex-1">
+                <label className="block text-xs text-muted-foreground mb-1">To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-orange-500/50"
+                />
+              </div>
             </div>
           )}
         </div>

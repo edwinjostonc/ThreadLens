@@ -1,13 +1,19 @@
 import type { ConsensusReport } from '@/types';
 import { hashQuery, normalizeQuery } from '@/lib/utils';
 
+export interface DateRange { from: string; to: string; }
+
 // Hot in-memory cache: fast, resets on restart
 const memoryCache = new Map<string, { report: ConsensusReport; expiresAt: number }>();
 const MEMORY_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const DB_TTL_HOURS = 24;
 
-export async function getCachedReport(query: string): Promise<ConsensusReport | null> {
-  const key = hashQuery(query);
+function buildKey(query: string, dateRange?: DateRange): string {
+  return dateRange ? `${query}|${dateRange.from}|${dateRange.to}` : query;
+}
+
+export async function getCachedReport(query: string, dateRange?: DateRange): Promise<ConsensusReport | null> {
+  const key = hashQuery(buildKey(query, dateRange));
 
   // Check memory first — evict on access so we don't need a setInterval
   const mem = memoryCache.get(key);
@@ -33,8 +39,8 @@ export async function getCachedReport(query: string): Promise<ConsensusReport | 
   return null;
 }
 
-export async function cacheReport(query: string, report: ConsensusReport): Promise<void> {
-  const key = hashQuery(query);
+export async function cacheReport(query: string, report: ConsensusReport, dateRange?: DateRange): Promise<void> {
+  const key = hashQuery(buildKey(query, dateRange));
   const normalized = normalizeQuery(query);
   const expiresAt = new Date(Date.now() + DB_TTL_HOURS * 60 * 60 * 1000);
 
