@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, ArrowLeft, RefreshCw, Clock, Layers, MessageSquare, Zap, Share2, Check, Calendar } from 'lucide-react';
+import { Search, ArrowLeft, RefreshCw, Clock, Layers, MessageSquare, Zap, Share2, Check, Calendar, GitCompare } from 'lucide-react';
 import type { ConsensusReport, AnalyzeResponse } from '@/types';
 import { LoadingSkeleton } from '@/components/results/LoadingSkeleton';
 import { RecommendationCard } from '@/components/results/RecommendationCard';
@@ -146,6 +146,13 @@ export function ResultsContent() {
                 Cached
               </span>
             )}
+            <Link
+              href={`/compare?a=${encodeURIComponent(query)}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs hover:border-orange-500/30 hover:text-orange-400 transition-all"
+            >
+              <GitCompare className="w-3 h-3" />
+              Compare
+            </Link>
             <button
               onClick={handleShare}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs hover:border-orange-500/30 hover:text-orange-400 transition-all"

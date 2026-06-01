@@ -144,6 +144,10 @@ export default function HomePage() {
           <span className="font-bold text-sm tracking-wide">ThreadLens</span>
         </div>
         <div className="flex items-center gap-4">
+          <a href="/compare"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Compare
+          </a>
           <a href="https://github.com/edwinjostonc/ThreadLens" target="_blank" rel="noreferrer"
             className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             GitHub
