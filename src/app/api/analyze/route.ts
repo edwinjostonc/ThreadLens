@@ -27,9 +27,17 @@ function checkRateLimitLocal(ip: string): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
   if (!entry || entry.resetAt < now) {
-    if (rateLimitMap.size > 500) {
+    // Evict: remove oldest entries when at capacity
+    if (rateLimitMap.size >= 500) {
+      let evicted = 0;
       for (const [k, v] of rateLimitMap) {
-        if (v.resetAt < now) rateLimitMap.delete(k);
+        if (v.resetAt < now) { rateLimitMap.delete(k); evicted++; }
+        if (evicted >= 100) break;
+      }
+      // If still full (all entries are current), evict the oldest by resetAt
+      if (rateLimitMap.size >= 500) {
+        const oldest = [...rateLimitMap.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt)[0];
+        if (oldest) rateLimitMap.delete(oldest[0]);
       }
     }
     rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
@@ -50,11 +58,14 @@ async function checkRateLimit(ip: string): Promise<boolean> {
 const pendingRequests = new Map<string, Promise<ConsensusReport>>();
 
 export async function GET(request: Request) {
+  // x-real-ip is set by reverse proxies (nginx/Vercel edge); more reliable than x-forwarded-for
   const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    request.headers.get('x-real-ip') ??
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    'unknown';
 
   if (!await checkRateLimit(ip)) {
-    return NextResponse.json({ error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
+    return NextResponse.json({ success: false, error: 'Rate limit exceeded. Try again in a minute.' }, { status: 429 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -62,17 +73,18 @@ export async function GET(request: Request) {
 
   const parsed = querySchema.safeParse(rawQuery);
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Query must be 2–200 characters.' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Query must be 2–200 characters.' }, { status: 400 });
   }
 
   const query = parsed.data;
 
-  // Parse optional date range
+  // Parse optional date range — regex guards format, Date.parse guards validity
   const dateFrom = searchParams.get('from');
   const dateTo = searchParams.get('to');
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  const isValidDate = (d: string) => dateRe.test(d) && !isNaN(Date.parse(d));
   const dateRange =
-    dateFrom && dateTo && dateRe.test(dateFrom) && dateRe.test(dateTo) && dateFrom <= dateTo
+    dateFrom && dateTo && isValidDate(dateFrom) && isValidDate(dateTo) && dateFrom <= dateTo
       ? { from: dateFrom, to: dateTo }
       : undefined;
 
@@ -179,7 +191,7 @@ export async function GET(request: Request) {
     pendingRequests.delete(dedupKey);
     console.error('[ThreadLens] Analysis error:', error);
     return NextResponse.json(
-      { error: 'Analysis failed. Reddit may be temporarily unavailable. Please try again.' },
+      { success: false, error: 'Analysis failed. Reddit may be temporarily unavailable. Please try again.' },
       { status: 500 },
     );
   }

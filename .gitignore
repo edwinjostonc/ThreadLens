@@ -10,6 +10,13 @@ out
 .env
 .env.local
 .env.*.local
+!.env.example
+
+# Secrets
+*.key
+*.pem
+*.p12
+secrets/
 
 # Database
 prisma/dev.db

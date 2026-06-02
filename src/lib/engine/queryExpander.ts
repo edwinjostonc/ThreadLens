@@ -1,12 +1,18 @@
 import { callGroq } from '@/lib/ai/groq';
 
+// Strip characters that can break prompt structure (newlines, backticks, angle brackets)
+function sanitizeForPrompt(text: string): string {
+  return text.replace(/[\r\n\t`<>]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function expandQueryBasic(query: string): string[] {
   const q = query.trim();
   return [...new Set([q, `${q} recommendation`, `best ${q}`, `${q} review`])];
 }
 
 export async function expandQuery(query: string): Promise<string[]> {
-  const prompt = `Generate 4 diverse Reddit search queries to find community opinions about: "${query}"
+  const safeQuery = sanitizeForPrompt(query);
+  const prompt = `Generate 4 diverse Reddit search queries to find community opinions about: "${safeQuery}"
 
 Rules:
 - Each query must be 3-6 words

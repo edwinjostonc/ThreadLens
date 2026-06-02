@@ -1,5 +1,6 @@
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const MAX_RETRIES = 2;
+const TIMEOUT_MS = 25_000;
 
 export interface GroqOptions {
   maxTokens?: number;
@@ -16,6 +17,8 @@ export async function callGroq(
   const { maxTokens = 300, temperature = 0.3 } = options;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -29,6 +32,7 @@ export async function callGroq(
           max_tokens: maxTokens,
           temperature,
         }),
+        signal: controller.signal,
       });
 
       // Rate limited — wait and retry
@@ -44,9 +48,16 @@ export async function callGroq(
 
       const json = await response.json();
       return json.choices?.[0]?.message?.content?.trim() ?? null;
-    } catch {
-      if (attempt === MAX_RETRIES) return null;
+    } catch (err) {
+      if (attempt === MAX_RETRIES) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[Groq] Request failed:', err instanceof Error ? err.message : err);
+        }
+        return null;
+      }
       await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

@@ -2,14 +2,20 @@ import type { RedditComment, Entity, EntityMention } from '@/types';
 import { analyzeSentiment, getSentencesContaining, classifySentences } from './sentimentAnalyzer';
 import { callGroq } from '@/lib/ai/groq';
 
+// Strip characters that can break prompt structure
+function sanitizeForPrompt(text: string): string {
+  return text.replace(/[\r\n\t`<>]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function groqChat(prompt: string, maxTokens = 300, temperature = 0.2): Promise<string | null> {
   return callGroq(prompt, { maxTokens, temperature });
 }
 
 async function extractEntityNamesWithGroq(comments: RedditComment[], query: string): Promise<string[] | null> {
   const text = comments.map((c) => `• ${c.text}`).join('\n').substring(0, 4000);
+  const safeQuery = sanitizeForPrompt(query);
 
-  const prompt = `You are analyzing Reddit community opinions about: "${query}"
+  const prompt = `You are analyzing Reddit community opinions about: "${safeQuery}"
 
 Reddit snippets:
 ${text}
@@ -48,8 +54,9 @@ async function filterRelevantComments(comments: RedditComment[], query: string):
   if (comments.length === 0) return [];
 
   const text = comments.map((c, i) => `[${i}] ${c.text.substring(0, 150)}`).join('\n');
+  const safeQuery = sanitizeForPrompt(query);
 
-  const prompt = `Query: "${query}"
+  const prompt = `Query: "${safeQuery}"
 
 Snippets:
 ${text}

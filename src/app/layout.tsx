@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
@@ -22,20 +22,25 @@ export const metadata: Metadata = {
     type: 'website',
   },
   manifest: '/manifest.json',
+};
+
+export const viewport: Viewport = {
   themeColor: '#f97316',
 };
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://thread-lens-gilt.vercel.app';
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'ThreadLens',
-  url: 'https://thread-lens-gilt.vercel.app',
+  url: BASE_URL,
   description: 'AI-powered Reddit Consensus Engine',
   potentialAction: {
     '@type': 'SearchAction',
     target: {
       '@type': 'EntryPoint',
-      urlTemplate: 'https://thread-lens-gilt.vercel.app/results?q={search_term_string}',
+      urlTemplate: `${BASE_URL}/results?q={search_term_string}`,
     },
     'query-input': 'required name=search_term_string',
   },

@@ -22,6 +22,7 @@ export async function redisGet<T>(key: string): Promise<T | null> {
 }
 
 export async function redisSet(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  if (ttlSeconds <= 0) return;
   try {
     const redis = getRedis();
     if (!redis) return;
@@ -43,11 +44,16 @@ export async function redisIncr(key: string, ttlSeconds: number): Promise<number
   }
 }
 
+const TRENDING_KEY = 'tl:trending';
+const TRENDING_TTL = 30 * 24 * 60 * 60; // 30-day rolling TTL
+
 export async function redisTrendingIncr(query: string): Promise<void> {
   try {
     const redis = getRedis();
     if (!redis) return;
-    await redis.zincrby('tl:trending', 1, query.toLowerCase().trim());
+    await redis.zincrby(TRENDING_KEY, 1, query.toLowerCase().trim());
+    // Rolling TTL prevents unbounded growth
+    await redis.expire(TRENDING_KEY, TRENDING_TTL);
   } catch {}
 }
 

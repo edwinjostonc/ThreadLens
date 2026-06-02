@@ -2,6 +2,11 @@ import type { Entity, RedditThread } from '@/types';
 import { generateTemplateSummary } from '@/lib/engine/reportGenerator';
 import { callGroq } from '@/lib/ai/groq';
 
+// Strip characters that can break prompt structure
+function sanitizeForPrompt(text: string): string {
+  return text.replace(/[\r\n\t`<>]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export async function generateExecutiveSummary(
   query: string,
   entities: Entity[],
@@ -20,9 +25,10 @@ export async function generateExecutiveSummary(
     return `- ${e.name}: score ${e.consensusScore}/100, ${Math.round(e.sentimentRatio * 100)}% positive (${e.totalMentions} mentions)\n  Praised for: ${pros}\n  Criticized for: ${cons}`;
   }).join('\n');
 
+  const safeQuery = sanitizeForPrompt(query);
   const prompt = `You are summarizing Reddit community consensus data for a user making a decision.
 
-User query: "${query}"
+User query: "${safeQuery}"
 Data: ${threads.length} Reddit threads, ${commentCount} comments analyzed
 
 Top recommendations (by consensus score):

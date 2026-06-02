@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, ArrowRight, Zap, Shield, BarChart3, FileText, Clock, X, Calendar, TrendingUp } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -51,7 +51,7 @@ function removeFromHistory(q: string) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(getHistory().filter((h) => h.q !== q)));
 }
 
-export default function HomePage() {
+function HomeContent() {
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<{ q: string; from?: string; to?: string; subreddit?: string }[]>([]);
@@ -70,8 +70,6 @@ export default function HomePage() {
 
   useEffect(() => {
     setHistory(getHistory());
-    const prefill = searchParams?.get('q');
-    if (prefill) setQuery(prefill);
     fetch('/api/trending').then((r) => r.json()).then((d) => {
       if (Array.isArray(d.trending) && d.trending.length > 0) setTrending(d.trending);
     }).catch(() => {});
@@ -87,6 +85,12 @@ export default function HomePage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // Sync query input with URL search param (handles back-navigation prefill)
+  useEffect(() => {
+    const prefill = searchParams?.get('q');
+    if (prefill) setQuery(prefill);
+  }, [searchParams]);
 
   useEffect(() => {
     if (animatedRef.current) return;
@@ -381,5 +385,13 @@ export default function HomePage() {
         </div>
       </footer>
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <HomeContent />
+    </Suspense>
   );
 }
